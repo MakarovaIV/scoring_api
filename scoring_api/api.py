@@ -11,7 +11,7 @@ from optparse import OptionParser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from weakref import WeakKeyDictionary
 
-import scoring
+from scoring_api import scoring
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -109,7 +109,7 @@ class DateField(CharField):
         try:
             datetime.datetime.strptime(value, "%d.%m.%Y")
         except ValueError:
-            return ValueError('Date format must be DD.MM.YYY')
+            return ValueError('Date format must be DD.MM.YYYY')
         return True
 
 
@@ -172,7 +172,7 @@ class MethodRequest(object):
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
-    method = CharField(required=True, nullable=False)
+    method = CharField(required=True, nullable=True)
 
     @property
     def is_admin(self):
