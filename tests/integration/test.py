@@ -1,30 +1,23 @@
 import hashlib
 import datetime
-import functools
 import unittest
 
-import api
-
-
-def cases(cases):
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(*args):
-            for c in cases:
-                new_args = args + (c if isinstance(c, tuple) else (c,))
-                f(*new_args)
-        return wrapper
-    return decorator
+from scoring_api import api
+from tests.case_decorator import cases
 
 
 class TestSuite(unittest.TestCase):
     def setUp(self):
         self.context = {}
         self.headers = {}
-        self.settings = {}
+        self.store = api.Store(api.REDIS_CONFIG, api.REDIS_CUSTOM_CONFIG)
+        self.store.set_list("1", ["Hi-Tech", "Documentary"])
+        self.store.set_list("2", ["Sci-fi", "Technology"])
+        self.store.set_list("3", ["Drama", "Sport"])
+        self.store.set("uid:1b987e27c7aef08ce7472f6c80ca7e03", 3.0)
 
     def get_response(self, request):
-        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.settings)
+        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.store)
 
     def set_valid_auth(self, request):
         if request.get("login") == api.ADMIN_LOGIN:
@@ -100,6 +93,20 @@ class TestSuite(unittest.TestCase):
         self.assertTrue(isinstance(score, (int, float)) and score >= 0, arguments)
         self.assertEqual(sorted(self.context["has"]), sorted(arguments.keys()))
 
+
+    @cases([
+        {"phone": "79175002040", "email": "stupnikov@otus.ru"},
+    ])
+    def test_ok_score_request_from_cache(self, arguments):
+        request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
+        self.set_valid_auth(request)
+        response, code = self.get_response(request)
+        self.assertEqual(api.OK, code, arguments)
+        score = response.get("score")
+        uid = "uid:" + hashlib.md5(("".join(arguments)).encode('utf-8')).hexdigest()
+        score_from_redis = self.store.cache_get(uid)
+        self.assertEqual(score, float(score_from_redis.decode('utf-8')))
+
     def test_ok_score_admin_request(self):
         arguments = {"phone": "79175002040", "email": "stupnikov@otus.ru"}
         request = {"account": "horns&hoofs", "login": "admin", "method": "online_score", "arguments": arguments}
@@ -127,7 +134,7 @@ class TestSuite(unittest.TestCase):
     @cases([
         {"client_ids": [1, 2, 3], "date": datetime.datetime.today().strftime("%d.%m.%Y")},
         {"client_ids": [1, 2], "date": "19.07.2017"},
-        {"client_ids": [0]},
+        {"client_ids": [1]},
     ])
     def test_ok_interests_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}

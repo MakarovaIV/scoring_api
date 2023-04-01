@@ -11,7 +11,8 @@ from optparse import OptionParser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from weakref import WeakKeyDictionary
 
-import scoring
+from scoring_api import scoring
+from scoring_api.store import Store
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -38,6 +39,18 @@ GENDERS = {
     FEMALE: "female",
 }
 MAX_AGE = 70
+
+STORE = None
+REDIS_CONFIG = {
+    "host": 'localhost',
+    "port": 6379,
+    "db": 0,
+    "socket_timeout": 3,
+    "socket_connect_timeout": 3,
+}
+REDIS_CUSTOM_CONFIG = {
+    "reconnect_attempts": 5
+}
 
 
 class BaseField:
@@ -109,7 +122,7 @@ class DateField(CharField):
         try:
             datetime.datetime.strptime(value, "%d.%m.%Y")
         except ValueError:
-            return ValueError('Date format must be DD.MM.YYY')
+            return ValueError('Date format must be DD.MM.YYYY')
         return True
 
 
@@ -172,7 +185,7 @@ class MethodRequest(object):
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
-    method = CharField(required=True, nullable=False)
+    method = CharField(required=True, nullable=True)
 
     @property
     def is_admin(self):
@@ -327,7 +340,6 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = None
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
@@ -351,7 +363,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                 try:
                     response, code = method_handler({"body": request},
                                                     context,
-                                                    self.store)
+                                                    STORE)
                 except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
                     code = INTERNAL_ERROR
@@ -383,6 +395,13 @@ if __name__ == "__main__":
                         datefmt='%Y.%m.%d %H:%M:%S')
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
     logging.info("Starting server at %s" % opts.port)
+
+    STORE = Store(REDIS_CONFIG, REDIS_CUSTOM_CONFIG)
+
+    STORE.set("test", "testvalue")
+
+    test_value = STORE.get("test")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
