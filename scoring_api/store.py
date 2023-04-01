@@ -17,9 +17,19 @@ class Store(object):
         while attempts:
             try:
                 return self.redis_client.get(key)
-            except Exception:
+            except Exception as e:
                 attempts -= 1
                 logging.error("Cannot get value from Redis")
+                time.sleep(2)
+
+    def get_list(self, key):
+        attempts = self.reconnect_attempts
+        while attempts:
+            try:
+                return self.redis_client.lrange(key, 0, -1)
+            except Exception as e:
+                attempts -= 1
+                logging.error("Cannot get list of values from Redis")
                 time.sleep(2)
 
     def set(self, key, value):
@@ -27,7 +37,18 @@ class Store(object):
         while attempts:
             try:
                 return self.redis_client.set(key, value)
-            except Exception:
+            except Exception as e:
+                attempts -= 1
+                logging.error("Cannot set value to Redis")
+                time.sleep(2)
+
+    def set_list(self, key, value):
+        attempts = self.reconnect_attempts
+        while attempts:
+            try:
+                self.redis_client.delete(key)
+                return self.redis_client.rpush(key, *value)
+            except Exception as e:
                 attempts -= 1
                 logging.error("Cannot set value to Redis")
                 time.sleep(2)

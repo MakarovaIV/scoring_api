@@ -5,7 +5,6 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python 3.10
@@ -19,6 +18,10 @@ jobs:
     - name: Run linter Flake8
       run: |
         flake8 scoring_api/api.py -v
+    - name: Run Redis
+      run: |
+        docker run -d --name redis-stack-server -p 6379:6379 redis/redis-stack-server:latest
+        docker exec -i redis-stack-server redis-cli
     - name: Run Tests with coverage
       run: |
         python3 -m coverage run -m unittest -v
